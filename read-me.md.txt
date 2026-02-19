@@ -1,0 +1,20 @@
+# File Organizer using Python
+
+A simple Python script that automatically organizes files into folders
+based on their file type.
+
+## Features
+- Organizes files by extension
+- Creates folders automatically
+- Handles unknown file types
+- Beginner-friendly
+
+## How to Run
+1. Clone the repository
+2. Run `python main.py`
+3. Enter the folder path to organize
+
+## Technologies Used
+- Python
+- os module
+- shutil module
