@@ -3,5 +3,6 @@
   "Videos": [".mp4", ".mkv", ".avi"],
   "Documents": [".pdf", ".docx", ".txt", ".pptx", ".xlsx"],
   "Music": [".mp3", ".wav"],
-  "Archives": [".zip", ".rar"]
+  "Archives": [".zip", ".rar"],
+  "Executables": [".exe", ".msi", ".bat", ".sh"]
 }
