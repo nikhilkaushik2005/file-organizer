@@ -23,12 +23,22 @@ LOGGER = None
 observer = None
 watch_running = False
 
-IGNORE_FILES = {"organizer.log", "rules.json", "main.py", "undo.log", "seen_hashes.txt", "gui.py", "gui.exe"}
+IGNORE_FILES = {"organizer.log", "rules.json", "main.py", "undo.log", "seen_hashes.txt", "gui.py", "gui.exe", "Sortify.exe"}
 
 EXPLICITLY_UNDONE = set()
 LAST_EVENT_TIME = 0
 
 STATE_LOCK = threading.Lock()
+
+def mark_session():
+    with STATE_LOCK:
+        if os.path.exists("undo.log"):
+            with open("undo.log", "r") as f:
+                lines = f.readlines()
+                if lines and lines[-1].strip() == "===SESSION===":
+                    return
+        with open("undo.log", "a") as f:
+            f.write("===SESSION===\n")
 
 # -------- LONG TERM MEMORY --------
 def load_hashes():
@@ -65,6 +75,7 @@ def get_file_hash(path):
             hasher.update(chunk)
     return hasher.hexdigest()   
 
+# ⚡ THE UPGRADE: A much smarter Undo system that skips empty bookmarks!
 def undo_operations():
     global LOGGER, EXPLICITLY_UNDONE, SEEN_HASHES
 
@@ -79,21 +90,38 @@ def undo_operations():
         if LOGGER: LOGGER("Nothing to undo.")
         return
 
-    last_session = []
-    for line in reversed(lines):
-        if line.strip() == "===SESSION===":
-            break
-        last_session.append(line)
+    moves_to_undo = []
+    lines_to_keep = lines.copy()
 
-    if not last_session:
+    # Read the log backwards, popping lines off the end
+    while lines_to_keep:
+        line = lines_to_keep.pop().strip()
+        if not line:
+            continue
+        if line == "===SESSION===":
+            if moves_to_undo:
+                # We found the start of a real session! Stop digging.
+                break
+            else:
+                # We found an empty bookmark. Skip it and keep digging!
+                continue
+        else:
+            # We found an actual file move!
+            moves_to_undo.append(line)
+
+    if not moves_to_undo:
         if LOGGER: LOGGER("No recent session to undo.")
+        # Save the log to permanently clean out those empty bookmarks
+        with STATE_LOCK:
+            with open("undo.log", "w") as f:
+                f.writelines(lines_to_keep)
         return
 
     hash_removed = False
 
-    for line in last_session:
+    for line in moves_to_undo:
         try:
-            new, original = line.strip().split("|")
+            new, original = line.split("|")
             clean_new = os.path.normpath(os.path.abspath(new))
             clean_original = os.path.normpath(os.path.abspath(original))
 
@@ -118,10 +146,10 @@ def undo_operations():
     if hash_removed:
         rewrite_hashes()
 
-    remaining_lines = lines[:-(len(last_session) + 1)]
+    # Save the log with the undone session cleanly removed
     with STATE_LOCK:
         with open("undo.log", "w") as f:
-            f.writelines(remaining_lines)
+            f.writelines(lines_to_keep)
 
     if LOGGER: LOGGER("Last session undone.")
 
@@ -153,7 +181,6 @@ def organize_file(file_path):
             return
         
         if clean_path in EXPLICITLY_UNDONE:
-            # ⚡ Silently return without writing spam to the log!
             return
         
         file_hash = get_file_hash(clean_path)
@@ -218,9 +245,7 @@ class WatchHandler(FileSystemEventHandler):
             if not event.is_directory:
                 current_time = time.time()
                 if current_time - LAST_EVENT_TIME > 2:
-                    with STATE_LOCK:
-                        with open("undo.log", "a") as f:
-                            f.write("===SESSION===\n")
+                    mark_session() 
                 LAST_EVENT_TIME = current_time
                 time.sleep(1) 
                 organize_file(event.src_path)
@@ -261,9 +286,7 @@ def main(path, dry_run=False, watch=False, undo=False, callback=None):
 
     EXPLICITLY_UNDONE.clear()
 
-    with STATE_LOCK:
-        with open("undo.log", "a") as f:
-            f.write("===SESSION===\n")
+    mark_session()
 
     for file in os.listdir(folder_path):
         organize_file(os.path.join(folder_path, file))
@@ -272,7 +295,7 @@ def main(path, dry_run=False, watch=False, undo=False, callback=None):
 
     if watch:
         if watch_running:
-            log("[INFO] Watch mode is already running.")
+            pass 
         else:
             watch_running = True
             event_handler = WatchHandler()
