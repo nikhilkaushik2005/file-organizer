@@ -10,7 +10,7 @@ from datetime import datetime
 import sys
 import threading
 
-# ⚡ FRESH START: Wipe the old undo history every time the app opens
+# FRESH START: Wipe the old undo history every time the app opens
 if os.path.exists("undo.log"):
     try:
         os.remove("undo.log")
@@ -75,7 +75,7 @@ def get_file_hash(path):
             hasher.update(chunk)
     return hasher.hexdigest()   
 
-# ⚡ THE UPGRADE: A much smarter Undo system that skips empty bookmarks!
+# THE UPGRADE: smarter Undo system that skips empty bookmarks!
 def undo_operations():
     global LOGGER, EXPLICITLY_UNDONE, SEEN_HASHES
 
@@ -100,13 +100,10 @@ def undo_operations():
             continue
         if line == "===SESSION===":
             if moves_to_undo:
-                # We found the start of a real session! Stop digging.
                 break
             else:
-                # We found an empty bookmark. Skip it and keep digging!
                 continue
         else:
-            # We found an actual file move!
             moves_to_undo.append(line)
 
     if not moves_to_undo:
