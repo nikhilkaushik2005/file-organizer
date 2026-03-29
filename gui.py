@@ -21,7 +21,6 @@ def select_folder():
         path_var.set(folder)
 
 def toggle_dry_run():
-    # Dynamically update the text when clicked
     if dry_run_var.get():
         dry_run_switch.configure(text="Dry Run: ON")
     else:
@@ -30,30 +29,32 @@ def toggle_dry_run():
 def toggle_watch():
     path = path_var.get()
     
-    if watch_var.get(): # If turned ON
+    # Check the actual backend state to see if we are starting or stopping
+    if not fileorg1_0.watch_running: 
         if not path:
             messagebox.showerror("Error", "Please select a folder first.")
-            watch_var.set(False) # Revert the switch
-            watch_switch.configure(text="Watch Mode: OFF")
             return
         
-        watch_switch.configure(text="Watch Mode: ON")
-        organize_btn.configure(state="disabled") # ⚡ Gray out manual button!
+        # UI Changes: Turn into a "Stop" button and disable manual organize
+        watch_btn.configure(text="🛑 Stop Watch Mode", fg_color="#EF4444", hover_color="#DC2626")
+        watch_desc.configure(text="Actively monitoring folder...")
+        organize_btn.configure(state="disabled") 
         
         def update_log(message):
             log_box.insert("end", message + "\n")
             log_box.see("end")
             
-        # Start watching immediately
         threading.Thread(
             target=fileorg1_0.main,
             args=(path, dry_run_var.get(), True, False, update_log),
             daemon=True
         ).start()
         
-    else: # If turned OFF
-        watch_switch.configure(text="Watch Mode: OFF")
-        organize_btn.configure(state="normal") # ⚡ Re-enable manual button
+    else: 
+        # UI Changes: Revert back to a "Start" button
+        watch_btn.configure(text="👁️ Start Watch Mode", fg_color="#3B82F6", hover_color="#2563EB")
+        watch_desc.configure(text="Auto-sorts newly added files.")
+        organize_btn.configure(state="normal") 
         
         def update_log(message):
             log_box.insert("end", message + "\n")
@@ -72,7 +73,6 @@ def run_organizer():
         log_box.insert("end", message + "\n")
         log_box.see("end")
 
-    # Manual organize (watch is forced False here)
     threading.Thread(
         target=fileorg1_0.main,
         args=(path, dry_run_var.get(), False, False, update_log),
@@ -121,19 +121,16 @@ root.title("Sortify")
 root.geometry("600x650") 
 root.protocol("WM_DELETE_WINDOW", on_closing)
 
-# Load the custom icon
 icon_path = os.path.join(base_path, "icon.ico")
 if os.path.exists(icon_path):
     root.iconbitmap(icon_path)
 
 path_var = ctk.StringVar()
 dry_run_var = ctk.BooleanVar()
-watch_var = ctk.BooleanVar()
 
 # --- HEADER ---
 header_frame = ctk.CTkFrame(root, fg_color="transparent")
-header_frame.pack(pady=(25, 15))
-
+header_frame.pack(pady=(25, 10))
 ctk.CTkLabel(header_frame, text="Smart File Organizer", font=ctk.CTkFont(size=26, weight="bold")).pack() 
 
 # --- MAIN DASHBOARD CARD ---
@@ -155,29 +152,40 @@ path_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
 browse_btn = ctk.CTkButton(input_row, text="📂 Browse", width=90, height=35, font=ctk.CTkFont(weight="bold"), command=select_folder)
 browse_btn.pack(side="left")
 
-# 2. Toggle Settings (Now heavily integrated!)
+# 2. Toggle Settings (Only Dry Run remains here!)
 settings_frame = ctk.CTkFrame(card, fg_color="transparent")
 settings_frame.pack(fill="x", padx=20, pady=(10, 20))
 
-# ⚡ Added onvalue/offvalue and hooked them to commands
 dry_run_switch = ctk.CTkSwitch(settings_frame, text="Dry Run: OFF", variable=dry_run_var, onvalue=True, offvalue=False, command=toggle_dry_run, font=ctk.CTkFont(size=13))
-dry_run_switch.pack(side="left", padx=(0, 30))
+dry_run_switch.pack(side="left")
 
-watch_switch = ctk.CTkSwitch(settings_frame, text="Watch Mode: OFF", variable=watch_var, onvalue=True, offvalue=False, command=toggle_watch, font=ctk.CTkFont(size=13))
-watch_switch.pack(side="left")
 
 # --- CONTROL DECK (Action Buttons) ---
 button_card = ctk.CTkFrame(root, fg_color="transparent")
-button_card.pack(fill="x", padx=40, pady=10)
+button_card.pack(fill="x", padx=40, pady=5)
 
 button_card.columnconfigure(0, weight=1)
+button_card.columnconfigure(1, weight=1)
 
-# The stop button has been completely removed!
-organize_btn = ctk.CTkButton(button_card, text="🚀 Organize Files", height=45, fg_color="#10B981", hover_color="#059669", font=ctk.CTkFont(size=15, weight="bold"), command=run_organizer)
-organize_btn.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+# Action 1: Manual Organize
+organize_btn = ctk.CTkButton(button_card, text="🚀 Organize Now", height=45, fg_color="#10B981", hover_color="#059669", font=ctk.CTkFont(size=15, weight="bold"), command=run_organizer)
+organize_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5), pady=(0, 2))
 
-undo_btn = ctk.CTkButton(button_card, text="↩️ Undo Last", height=40, fg_color="#EF4444", hover_color="#DC2626", font=ctk.CTkFont(weight="bold"), command=run_undo)
-undo_btn.grid(row=1, column=0, sticky="ew")
+# Action 2: Watch Mode
+watch_btn = ctk.CTkButton(button_card, text="👁️ Start Watch Mode", height=45, fg_color="#3B82F6", hover_color="#2563EB", font=ctk.CTkFont(size=15, weight="bold"), command=toggle_watch)
+watch_btn.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=(0, 2))
+
+# Helpful Descriptions
+org_desc = ctk.CTkLabel(button_card, text="One-time instant cleanup.", font=ctk.CTkFont(size=11), text_color="gray")
+org_desc.grid(row=1, column=0, sticky="n", pady=(0, 15))
+
+watch_desc = ctk.CTkLabel(button_card, text="Auto-sorts newly added files.", font=ctk.CTkFont(size=11), text_color="gray")
+watch_desc.grid(row=1, column=1, sticky="n", pady=(0, 15))
+
+# Action 3: Undo
+undo_btn = ctk.CTkButton(button_card, text="↩️ Undo Last Action", height=40, fg_color="#6B7280", hover_color="#4B5563", font=ctk.CTkFont(weight="bold"), command=run_undo)
+undo_btn.grid(row=2, column=0, columnspan=2, sticky="ew")
+
 
 # --- TERMINAL / LOG OUTPUT ---
 log_frame = ctk.CTkFrame(root, fg_color="transparent")
